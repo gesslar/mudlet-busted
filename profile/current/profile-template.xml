@@ -258,9 +258,9 @@
         end
         bustedState.setupRun = true
 
-        local testFileLoader = testFileLoader or require 'busted.modules.test_file_loader'(busted,
+        bustedState.testFileLoader = bustedState.testFileLoader or require 'busted.modules.test_file_loader'(busted,
         {'lua'})
-        testFileLoader(bustedState.filesTable, bustedState.patternsTable, {
+        bustedState.testFileLoader(bustedState.filesTable, bustedState.patternsTable, {
         excludes = {},
         verbose = bustedState.verbose,
         recursive = bustedState.recursive,
@@ -349,6 +349,7 @@
         local testLocation = os.getenv("TESTS_DIRECTORY")
         if not testLocation then
         ioprint("No location for the tests provided, don't know what to run.")
+        raiseEvent("testsComplete")
         return
         end
 

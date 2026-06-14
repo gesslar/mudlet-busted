@@ -43,7 +43,7 @@ appimage="$1"
 [[ -f "$appimage" ]] || { echo "Error: file '$appimage' not found"; exit 1; }
 
 # Extract version from filename (e.g. Mudlet-4.20.1.AppImage -> 4.20.1)
-version=$(basename "$appimage" | grep -oP '\d+\.\d+\.\d+') \
+version=$(basename "$appimage" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+') \
   || { echo "Error: could not extract version from '$appimage'"; exit 1; }
 
 repo="gesslardev/mudlet-busted"
@@ -54,6 +54,7 @@ echo "==> AppImage: $appimage"
 echo "==> Version:  $version"
 echo ""
 
+trap 'rm -f Mudlet.AppImage' EXIT
 cp "$appimage" Mudlet.AppImage
 
 docker build -t "$repo:$version" -t "$repo:latest" .
@@ -62,8 +63,6 @@ docker push "$repo:latest"
 
 # Sync OVERVIEW.md into the Docker Hub repo overview (requires docker-pushrm plugin)
 docker pushrm "$repo" -f OVERVIEW.md
-
-rm -f Mudlet.AppImage
 
 echo ""
 echo "==> Pushed $repo:$version and $repo:latest"

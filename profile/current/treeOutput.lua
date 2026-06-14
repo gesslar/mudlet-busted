@@ -1,15 +1,15 @@
 -- Tree-style output handler for Busted
 -- Displays nested describe/it blocks with indentation, similar to Mocha/Node.js
 
--- Every line of output goes through write(): it prepends the [mudlet-busted]
--- tag (the entrypoint strips it per line) and terminates with a single \n.
--- During a run io.write is remapped to Mudlet's echo() (see runTests in the
--- profile). Each call composes one complete line and writes it once, so one
--- write() == one output line — output stays correct with or without --mirror's
--- per-echo line breaking. Compose multi-part lines into a string first, then
--- write() once; do not split a single logical line across multiple write()s.
+-- write() prepends the [mudlet-busted] tag (the entrypoint strips it per line)
+-- and does NOT append a newline. During a run io.write is remapped to Mudlet's
+-- echo() (see runTests in the profile), and with --mirror each echo() call is
+-- emitted as its own line on the captured console — so one write() == one line
+-- without a trailing \n. Because of that, compose each logical line into a
+-- single string and write() it once: splitting a line across multiple write()s
+-- would repeat the tag mid-line (the strip only removes it at line start).
 local function write(message)
-  io.write("[mudlet-busted] " .. tostring(message or '') .. '\n')
+  io.write("[mudlet-busted] " .. tostring(message or ""))
 end
 
 return function(options)

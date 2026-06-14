@@ -353,7 +353,7 @@
         end
 
         local preTestPackage = os.getenv("PRETEST_PACKAGE")
-        if preTestPackage and preTestPackage ~= "NONE" then
+        if preTestPackage and preTestPackage ~= "" and preTestPackage ~= "NONE" then
         installPackage(preTestPackage)
         end
 
@@ -383,7 +383,8 @@
         if errorLogged then return end
 
         if getOS() == "linux" then
-        file = io.open("/tmp/busted-tests-failed", "w")
+        local sentinel = os.getenv("SENTINEL") or "/tmp/busted-tests-failed"
+        file = io.open(sentinel, "w")
         file:write("Lua busted tests failed")
         file:close()
         else

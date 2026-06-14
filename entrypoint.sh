@@ -141,7 +141,8 @@ echo ""
 export AUTORUN_BUSTED_TESTS=true
 export TESTS_DIRECTORY="$TESTS_DIR"
 export QUIT_MUDLET_AFTER_TESTS=true
-export PRETEST_PACKAGE="${PRETEST_PACKAGE:-}"
+export PRETEST_PACKAGE="${PRETEST_PACKAGE:-NONE}"
+export SENTINEL
 
 
 xvfb-run --auto-servernum \

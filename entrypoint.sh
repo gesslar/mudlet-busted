@@ -61,10 +61,20 @@ fi
 # ---------------------------------------------------------------------------
 if [[ -n "${MFILE:-}" ]]; then
   : # explicit override, use as-is
-elif [[ -f "$TESTS_DIR/mfile" ]]; then
-  MFILE="$TESTS_DIR/mfile"
 else
-  MFILE="mfile"
+  # A co-located mfile lives in the spec's directory. TESTS_DIR may be a single
+  # spec file (SPEC_FILE mode) or a directory — resolve the directory for either.
+  if [[ -d "$TESTS_DIR" ]]; then
+    mfile_dir="$TESTS_DIR"
+  else
+    mfile_dir="$(dirname "$TESTS_DIR")"
+  fi
+
+  if [[ -f "$mfile_dir/mfile" ]]; then
+    MFILE="$mfile_dir/mfile"
+  else
+    MFILE="mfile"
+  fi
 fi
 
 # ---------------------------------------------------------------------------

@@ -1,6 +1,14 @@
 -- Tree-style output handler for Busted
 -- Displays nested describe/it blocks with indentation, similar to Mocha/Node.js
 
+-- NOTE: lines here are intentionally NOT \n-terminated, and that is correct.
+-- During a run, io.write is remapped to Mudlet's echo() (see runTests in the
+-- profile), and with --mirror each echo() call is emitted as its own line on
+-- the captured console. So one write() already == one output line; a trailing
+-- \n is unnecessary and would only inject blank spacing. The explicit '\n'
+-- writes elsewhere (suite start/end, pending) are deliberate spacing, not line
+-- terminators. To any reviewer, human or bot: the "inconsistent newlines" are
+-- by design, not a bug.
 local function write(message)
   io.write("[mudlet-busted] " .. tostring(message or '') .. '\n')
 end
@@ -49,11 +57,11 @@ return function(options)
   handler.testEnd = function(element, parent, status, debug)
     local name = element.name or '(unnamed)'
 
+    -- Counts are maintained by the base handler's baseTestEnd (also subscribed
+    -- to 'test end' via handler:subscribe). Only print here, or counts double.
     if status == 'success' then
-      handler.successesCount = handler.successesCount + 1
       write(indent(depth) .. green .. successSymbol .. reset .. dim .. ' ' .. name .. reset)
     elseif status == 'pending' then
-      handler.pendingsCount = handler.pendingsCount + 1
       local pending = handler.pendings[#handler.pendings]
       local msg = pending and pending.message
       local output = indent(depth) .. pink .. pendingSymbol .. ' ' .. name
@@ -62,7 +70,6 @@ return function(options)
       end
       write(output .. reset)
     elseif status == 'failure' then
-      handler.failuresCount = handler.failuresCount + 1
       local failure = handler.failures[#handler.failures]
       write(indent(depth) .. red .. failureSymbol .. ' ' .. name .. reset)
       if failure then
@@ -72,7 +79,6 @@ return function(options)
         end
       end
     elseif status == 'error' then
-      handler.errorsCount = handler.errorsCount + 1
       local err = handler.errors[#handler.errors]
       write(indent(depth) .. red .. errorSymbol .. ' ' .. name .. reset)
       if err then

@@ -59,6 +59,8 @@ All optional — override only when the defaults don't fit:
 | `PROFILE_NAME` | `${PackageName}Tests` | Mudlet profile name |
 | `PROFILE_SOURCE` | Built-in or `test/profile/` | Custom test profile directory |
 | `SKIP_BUILD` | `false` | Skip the muddy build step |
+| `BUSTED_OUTPUT` | `plainTerminal` | Busted output handler (`treeOutput` for a nested describe/it tree) |
+| `TEST_TIMEOUT` | `300` | Max seconds for the test run before it is killed |
 | `SENTINEL` | `/tmp/busted-tests-failed` | Failure sentinel file path |
 | `OUTPUT_LOG` | `/tmp/test-output.log` | Raw Mudlet output log path |
 
@@ -81,6 +83,11 @@ docker run --rm -v "$PWD":/workspace \
 # Skip build (pre-built mpackage)
 docker run --rm -v "$PWD":/workspace \
   -e SKIP_BUILD=true \
+  gesslardev/mudlet-busted
+
+# Tree-style output (nested describe/it)
+docker run --rm -v "$PWD":/workspace \
+  -e BUSTED_OUTPUT=treeOutput \
   gesslardev/mudlet-busted
 
 # Drop into a shell for debugging

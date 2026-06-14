@@ -84,4 +84,4 @@ docker pushrm gesslardev/mudlet-busted -f OVERVIEW.md
 - [demonnic/test-in-mudlet](https://github.com/demonnic/test-in-mudlet)
 - [demonnic/MudletBusted](https://github.com/demonnic/MudletBusted)
 
-Basically, and as has been stated before, but not enough, @demonnic is a god and at his altar of code-geniusness should be laid all of our praise and thanks.
+Basically, as has been insufficiently stated before, @demonnic is a god and at his altar of code-geniusness should be laid all of our praise and thanks.

@@ -19,7 +19,7 @@ FROM fedora:42
 # Adding Yes, Daddy! repo
 # ---------------------------------------------------------------------------
 
-RUN curl -fsSL https://rpm.gesslar.dev/yes-daddy | sudo bash
+RUN curl -fsSL https://rpm.gesslar.dev/yes-daddy | bash
 
 # ---------------------------------------------------------------------------
 # System packages

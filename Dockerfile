@@ -17,9 +17,14 @@ FROM fedora:42
 
 # ---------------------------------------------------------------------------
 # Adding Yes, Daddy! repo
+#
+# The repo definition and signing key are committed to this repo so the build
+# is reproducible and doesn't depend on piping a remote script into bash.
 # ---------------------------------------------------------------------------
 
-RUN curl -fsSL https://rpm.gesslar.dev/yes-daddy | bash
+COPY yes-daddy.key /etc/pki/rpm-gpg/RPM-GPG-KEY-yes-daddy
+COPY yes-daddy.repo /etc/yum.repos.d/yes-daddy.repo
+RUN rpm --import /etc/pki/rpm-gpg/RPM-GPG-KEY-yes-daddy
 
 # ---------------------------------------------------------------------------
 # System packages

@@ -50,8 +50,15 @@ RUN dnf install -y \
 # Node.js 24.11.0 (required by muddy)
 # ---------------------------------------------------------------------------
 ARG NODE_VERSION=24.11.0
-RUN curl -fsSL https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.xz \
-      | tar -xJ -C /usr/local --strip-components=1
+# Download, verify against Node's published SHASUMS256.txt, then extract.
+RUN set -eux \
+    && cd /tmp \
+    && NODE_TARBALL="node-v${NODE_VERSION}-linux-x64.tar.xz" \
+    && curl -fsSLO "https://nodejs.org/dist/v${NODE_VERSION}/${NODE_TARBALL}" \
+    && curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/SHASUMS256.txt" -o SHASUMS256.txt \
+    && grep " ${NODE_TARBALL}\$" SHASUMS256.txt | sha256sum -c - \
+    && tar -xJf "${NODE_TARBALL}" -C /usr/local --strip-components=1 \
+    && rm -f "${NODE_TARBALL}" SHASUMS256.txt
 
 # ---------------------------------------------------------------------------
 # Busted (Lua 5.1)

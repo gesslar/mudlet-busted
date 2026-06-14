@@ -3,7 +3,7 @@ set -euo pipefail
 
 usage() {
   echo "Usage: $0 <Mudlet-X.Y.Z.AppImage>"
-  echo "  Copies the AppImage to /tmp/Mudlet.AppImage, builds the Docker image"
+  echo "  Copies the AppImage to ./Mudlet.AppImage, builds the Docker image"
   echo "  tagged as gesslardev/mudlet-busted:X.Y.Z and :latest, then pushes both."
   exit 1
 }

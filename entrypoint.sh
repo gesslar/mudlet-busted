@@ -81,6 +81,7 @@ fi
 # Build step (in a temp directory — no writes to the mounted workspace)
 # ---------------------------------------------------------------------------
 BUILD_DIR="$(mktemp -d)"
+trap 'rm -rf "$BUILD_DIR"' EXIT
 
 if [[ "$SKIP_BUILD" != "true" ]]; then
   echo "==> Building package with muddy..."
@@ -104,20 +105,23 @@ if [[ "$SKIP_BUILD" != "true" ]]; then
 
   # Ensure outputFile is true in the mfile so .output gets written
   BUILD_MFILE="$BUILD_DIR/${MFILE_ABS#/workspace/}"
-  node -e "
-    const fs = require('fs')
-    const mf = JSON.parse(fs.readFileSync('$BUILD_MFILE', 'utf8'))
+  # Path is passed as argv (not interpolated into the JS source) so special
+  # characters in a user-supplied MFILE can't break or inject into the script.
+  node -e '
+    const fs = require("fs")
+    const p = process.argv[1]
+    const mf = JSON.parse(fs.readFileSync(p, "utf8"))
     mf.outputFile = true
-    fs.writeFileSync('$BUILD_MFILE', JSON.stringify(mf, null, 2) + '\n')
-  "
+    fs.writeFileSync(p, JSON.stringify(mf, null, 2) + "\n")
+  ' "$BUILD_MFILE"
 
   cd "$BUILD_DIR"
   npx @gesslar/muddy --mfile "$BUILD_MFILE"
 
   # muddy writes .output with {"name":"...","path":"/build/Foo.mpackage"}
   if [[ -f "$BUILD_DIR/.output" ]]; then
-    PKG_NAME="$(node -e "process.stdout.write(JSON.parse(require('fs').readFileSync('$BUILD_DIR/.output','utf8')).name)")"
-    PKG_PATH="$(node -e "process.stdout.write(JSON.parse(require('fs').readFileSync('$BUILD_DIR/.output','utf8')).path)")"
+    PKG_NAME="$(node -e 'process.stdout.write(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).name)' "$BUILD_DIR/.output")"
+    PKG_PATH="$(node -e 'process.stdout.write(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).path)' "$BUILD_DIR/.output")"
     PRETEST_PACKAGE="${BUILD_DIR}${PKG_PATH}"
     PROFILE_NAME="${PKG_NAME}Tests"
     PROFILE_DIR="$HOME/.config/mudlet/profiles/$PROFILE_NAME"
@@ -168,11 +172,12 @@ export PRETEST_PACKAGE="${PRETEST_PACKAGE:-NONE}"
 export SENTINEL
 
 
+MUDLET_RC=0
 xvfb-run --auto-servernum \
   "$MUDLET_BIN" \
   --profile "$PROFILE_NAME" \
   --mirror \
-  >"$OUTPUT_LOG" 2>&1 || true
+  >"$OUTPUT_LOG" 2>&1 || MUDLET_RC=$?
 
 # ---------------------------------------------------------------------------
 # Parse and display results
@@ -238,9 +243,21 @@ else
 fi
 
 if [[ -f "$SENTINEL" ]]; then
+  # Tests ran and at least one failed.
   rm -f "$SENTINEL"
   exit 1
-else
+elif grep -qE 'successes? / .*failures?|[0-9]+ passing' "$OUTPUT_LOG"; then
+  # Tests ran to completion and none failed.
   rm -f "$OUTPUT_LOG"
   exit 0
+else
+  # No sentinel and no result summary — Mudlet failed to start or crashed
+  # before the suite finished. Never report success in this case.
+  echo ""
+  echo "  ERROR: no test results were produced (Mudlet exit: $MUDLET_RC)."
+  echo "  Mudlet likely failed to start or crashed before the suite completed."
+  echo "----------------------------------------"
+  cat "$OUTPUT_LOG" 2>/dev/null || echo "  (no output captured)"
+  echo "----------------------------------------"
+  exit 1
 fi

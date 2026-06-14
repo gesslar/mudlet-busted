@@ -1,0 +1,6 @@
+# Mudlet AppImages are build inputs (downloaded releases), not source.
+# Also covers the temp Mudlet.AppImage that build-and-push creates.
+*.AppImage
+
+# Personal/local Claude settings
+.claude/settings.local.json

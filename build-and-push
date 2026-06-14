@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  echo "Usage: $0 <Mudlet-X.Y.Z.AppImage>"
+  echo "  Copies the AppImage to /tmp/Mudlet.AppImage, builds the Docker image"
+  echo "  tagged as gesslardev/mudlet-busted:X.Y.Z and :latest, then pushes both."
+  exit 1
+}
+
+# Ensure the docker-pushrm plugin is installed (used to sync the Hub overview).
+# It lives in ~/.docker/cli-plugins, not in this dir, so bootstrap it if absent.
+ensure_pushrm() {
+  docker pushrm --help >/dev/null 2>&1 && return 0
+
+  local ver="v1.9.0"
+  local os arch
+  case "$(uname -s)" in
+    Linux)  os="linux" ;;
+    Darwin) os="darwin" ;;
+    *) echo "Error: unsupported OS for docker-pushrm auto-install"; exit 1 ;;
+  esac
+  case "$(uname -m)" in
+    x86_64|amd64) arch="amd64" ;;
+    aarch64|arm64) arch="arm64" ;;
+    *) echo "Error: unsupported arch for docker-pushrm auto-install"; exit 1 ;;
+  esac
+
+  local dest="$HOME/.docker/cli-plugins/docker-pushrm"
+  echo "==> docker-pushrm plugin not found; installing $ver ($os/$arch)"
+  mkdir -p "$HOME/.docker/cli-plugins"
+  curl -fSL "https://github.com/christian-korneck/docker-pushrm/releases/download/${ver}/docker-pushrm_${os}_${arch}" \
+    -o "$dest"
+  chmod +x "$dest"
+  docker pushrm --help >/dev/null 2>&1 \
+    || { echo "Error: docker-pushrm install failed"; exit 1; }
+}
+
+[[ $# -eq 1 ]] || usage
+
+appimage="$1"
+
+[[ -f "$appimage" ]] || { echo "Error: file '$appimage' not found"; exit 1; }
+
+# Extract version from filename (e.g. Mudlet-4.20.1.AppImage -> 4.20.1)
+version=$(basename "$appimage" | grep -oP '\d+\.\d+\.\d+') \
+  || { echo "Error: could not extract version from '$appimage'"; exit 1; }
+
+repo="gesslardev/mudlet-busted"
+
+ensure_pushrm
+
+echo "==> AppImage: $appimage"
+echo "==> Version:  $version"
+echo ""
+
+cp "$appimage" Mudlet.AppImage
+
+docker build -t "$repo:$version" -t "$repo:latest" .
+docker push "$repo:$version"
+docker push "$repo:latest"
+
+# Sync OVERVIEW.md into the Docker Hub repo overview (requires docker-pushrm plugin)
+docker pushrm "$repo" -f OVERVIEW.md
+
+rm -f Mudlet.AppImage
+
+echo ""
+echo "==> Pushed $repo:$version and $repo:latest"
+echo "==> Updated Docker Hub overview from OVERVIEW.md"

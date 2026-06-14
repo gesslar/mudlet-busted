@@ -2,7 +2,7 @@
 -- Displays nested describe/it blocks with indentation, similar to Mocha/Node.js
 
 local function write(message)
-  io.write("[mudlet-busted] " .. message)
+  io.write("[mudlet-busted] " .. tostring(message or '') .. '\n')
 end
 
 return function(options)
@@ -56,11 +56,11 @@ return function(options)
       handler.pendingsCount = handler.pendingsCount + 1
       local pending = handler.pendings[#handler.pendings]
       local msg = pending and pending.message
-      write(indent(depth) .. pink .. pendingSymbol .. ' ' .. name)
+      local output = indent(depth) .. pink .. pendingSymbol .. ' ' .. name
       if msg then
-        write(dim .. ' (' .. msg .. ')')
+        output = output .. dim .. ' (' .. msg .. ')'
       end
-      write(reset .. '\n')
+      write(output .. reset)
     elseif status == 'failure' then
       handler.failuresCount = handler.failuresCount + 1
       local failure = handler.failures[#handler.failures]
@@ -89,7 +89,7 @@ return function(options)
   handler.suiteStart = function(suite, count, total)
     if count == 1 then
       startTime = os.clock()
-      write('\n')
+      write('')
     end
     return nil, true
   end
@@ -97,21 +97,22 @@ return function(options)
   handler.suiteEnd = function()
     local elapsed = os.clock() - startTime
 
-    write('\n')
-    write(green .. '  ' .. handler.successesCount .. ' passing' .. reset ..
-      dim .. ' (' .. string.format('%.2fs', elapsed) .. ')' .. reset)
+    write('')
+    local summary = green .. '  ' .. handler.successesCount .. ' passing' .. reset ..
+      dim .. ' (' .. string.format('%.2fs', elapsed) .. ')' .. reset
 
     if handler.failuresCount > 0 then
-      write(red .. '  ' .. handler.failuresCount .. ' failing' .. reset)
+      summary = summary .. red .. '  ' .. handler.failuresCount .. ' failing' .. reset
     end
     if handler.errorsCount > 0 then
-      write(red .. '  ' .. handler.errorsCount .. ' errors' .. reset)
+      summary = summary .. red .. '  ' .. handler.errorsCount .. ' errors' .. reset
     end
     if handler.pendingsCount > 0 then
-      write(pink .. '  ' .. handler.pendingsCount .. ' pending' .. reset)
+      summary = summary .. pink .. '  ' .. handler.pendingsCount .. ' pending' .. reset
     end
 
-    write('\n')
+    write(summary)
+    write('')
 
     return nil, true
   end

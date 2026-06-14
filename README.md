@@ -78,3 +78,10 @@ docker pushrm gesslardev/mudlet-busted -f OVERVIEW.md
   absolute URLs for any images or badges.
 - The `docker-pushrm` version is pinned in `build-and-push` (`ver="v1.9.0"`);
   bump it there if you want a newer release.
+
+## Credits
+
+- [demonnic/test-in-mudlet](https://github.com/demonnic/test-in-mudlet)
+- [demonnic/MudletBusted](https://github.com/demonnic/MudletBusted)
+
+Basically, and as has been stated before, but not enough, @demonnic is a god and at his altar of code-geniusness should be laid all of our praise and thanks.

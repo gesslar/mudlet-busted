@@ -15,6 +15,7 @@ set -euo pipefail
 #   MFILE                 Path to mfile for muddy (default: mfile)
 #   SENTINEL              Path to failure sentinel file (default: /tmp/busted-tests-failed)
 #   OUTPUT_LOG            Path to raw output log (default: /tmp/test-output.log)
+#   TEST_TIMEOUT          Max seconds for the Mudlet test run (default: 300)
 # =============================================================================
 
 MUDLET_BIN="${MUDLET_BIN:-/opt/mudlet/mudlet-app/AppRun}"
@@ -22,6 +23,7 @@ PROFILE_NAME="${PROFILE_NAME:-BustedTests}"
 PROFILE_DIR="$HOME/.config/mudlet/profiles/$PROFILE_NAME"
 SENTINEL="${SENTINEL:-/tmp/busted-tests-failed}"
 OUTPUT_LOG="${OUTPUT_LOG:-/tmp/test-output.log}"
+TEST_TIMEOUT="${TEST_TIMEOUT:-300}"
 SKIP_BUILD="${SKIP_BUILD:-false}"
 # BUSTED_FMT="${BUSTED_OUTPUT:-treeOutput}"
 BUSTED_FMT="${BUSTED_OUTPUT:-plainTerminal}"
@@ -132,6 +134,19 @@ if [[ "$SKIP_BUILD" != "true" ]]; then
 fi
 
 # ---------------------------------------------------------------------------
+# Validate PROFILE_NAME before it touches the filesystem.
+# It is user-controlled (env) and derived from package metadata (.output's
+# name), and feeds both rm -rf "$PROFILE_DIR" and a sed replacement. Restrict
+# it to a safe charset: no '/' (path traversal), no '&'/'|' (sed breakage),
+# and reject the '.'/'..' directory references outright.
+# ---------------------------------------------------------------------------
+if [[ ! "$PROFILE_NAME" =~ ^[A-Za-z0-9._-]+$ ]] || [[ "$PROFILE_NAME" == "." || "$PROFILE_NAME" == ".." ]]; then
+  echo "Error: invalid PROFILE_NAME '$PROFILE_NAME'"
+  echo "       (allowed: letters, digits, '.', '_', '-'; no '/', and not '.' or '..')"
+  exit 1
+fi
+
+# ---------------------------------------------------------------------------
 # Install test profile
 # ---------------------------------------------------------------------------
 # Use project-local profile if present, otherwise fall back to the one
@@ -173,7 +188,8 @@ export SENTINEL
 
 
 MUDLET_RC=0
-xvfb-run --auto-servernum \
+timeout "$TEST_TIMEOUT" \
+  xvfb-run --auto-servernum \
   "$MUDLET_BIN" \
   --profile "$PROFILE_NAME" \
   --mirror \
@@ -255,7 +271,11 @@ else
   # before the suite finished. Never report success in this case.
   echo ""
   echo "  ERROR: no test results were produced (Mudlet exit: $MUDLET_RC)."
-  echo "  Mudlet likely failed to start or crashed before the suite completed."
+  if [[ "$MUDLET_RC" -eq 124 ]]; then
+    echo "  The run exceeded TEST_TIMEOUT=${TEST_TIMEOUT}s and was killed."
+  else
+    echo "  Mudlet likely failed to start or crashed before the suite completed."
+  fi
   echo "----------------------------------------"
   cat "$OUTPUT_LOG" 2>/dev/null || echo "  (no output captured)"
   echo "----------------------------------------"

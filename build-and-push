@@ -26,11 +26,32 @@ ensure_pushrm() {
     *) echo "Error: unsupported arch for docker-pushrm auto-install"; exit 1 ;;
   esac
 
+  # Pinned SHA-256 checksums for docker-pushrm v1.9.0 (upstream publishes no
+  # checksums file). Update these whenever $ver changes.
+  local sha
+  case "${os}_${arch}" in
+    linux_amd64)  sha="2f48649ce6c6aba1656a0fb3fc7a82971caf8ece7d86e6eed3d10c106d20fac8" ;;
+    linux_arm64)  sha="4509cbc5b25c2ca60d2287048265ba21247a5b01bbd16d88546ecf1db53f143a" ;;
+    darwin_amd64) sha="b99b22f22beeb75d3e6c5a37bd2477f39b8e7181e0c3d7b242c8de5d36c20ba2" ;;
+    darwin_arm64) sha="8dcbac5229e4e78c9c727b393802a8e676ff3b2cdb31e1312f8acf3a63e7b0ae" ;;
+    *) echo "Error: no pinned docker-pushrm checksum for ${os}_${arch}"; exit 1 ;;
+  esac
+
   local dest="$HOME/.docker/cli-plugins/docker-pushrm"
   echo "==> docker-pushrm plugin not found; installing $ver ($os/$arch)"
   mkdir -p "$HOME/.docker/cli-plugins"
   curl -fSL "https://github.com/christian-korneck/docker-pushrm/releases/download/${ver}/docker-pushrm_${os}_${arch}" \
     -o "$dest"
+
+  # Verify before making it executable (sha256sum on Linux, shasum on macOS).
+  if command -v sha256sum >/dev/null 2>&1; then
+    echo "${sha}  ${dest}" | sha256sum -c - \
+      || { echo "Error: docker-pushrm checksum mismatch"; rm -f "$dest"; exit 1; }
+  else
+    echo "${sha}  ${dest}" | shasum -a 256 -c - \
+      || { echo "Error: docker-pushrm checksum mismatch"; rm -f "$dest"; exit 1; }
+  fi
+
   chmod +x "$dest"
   docker pushrm --help >/dev/null 2>&1 \
     || { echo "Error: docker-pushrm install failed"; exit 1; }

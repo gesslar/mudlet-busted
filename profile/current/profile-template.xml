@@ -384,9 +384,13 @@
 
         if getOS() == "linux" then
         local sentinel = os.getenv("SENTINEL") or "/tmp/busted-tests-failed"
-        file = io.open(sentinel, "w")
-        file:write("Lua busted tests failed")
-        file:close()
+        local f, err = io.open(sentinel, "w")
+        if f then
+        f:write("Lua busted tests failed")
+        f:close()
+        else
+        ioprint("Tests failed, but could not write sentinel '"..sentinel.."': "..tostring(err))
+        end
         else
         ioprint("Tests failed, but did not know how to log the error for "..getOS())
         end

@@ -79,8 +79,21 @@ if [[ "$SKIP_BUILD" != "true" ]]; then
   # Copy project into the build dir so muddy doesn't write to the mount
   cp -a /workspace/. "$BUILD_DIR/"
 
+  # The build runs against a copy of /workspace, so the mfile must live inside
+  # it for the corresponding path in the build dir to exist.
+  if [[ ! -f "$MFILE" ]]; then
+    echo "Error: mfile not found: $MFILE"
+    exit 1
+  fi
+
+  MFILE_ABS="$(cd "$(dirname "$MFILE")" && pwd)/$(basename "$MFILE")"
+  case "$MFILE_ABS" in
+    /workspace/*) ;;
+    *) echo "Error: mfile must be inside the mounted workspace (/workspace): $MFILE"; exit 1 ;;
+  esac
+
   # Ensure outputFile is true in the mfile so .output gets written
-  BUILD_MFILE="$BUILD_DIR/${MFILE#/workspace/}"
+  BUILD_MFILE="$BUILD_DIR/${MFILE_ABS#/workspace/}"
   node -e "
     const fs = require('fs')
     const mf = JSON.parse(fs.readFileSync('$BUILD_MFILE', 'utf8'))
@@ -121,7 +134,7 @@ fi
 echo "==> Installing test profile ($PROFILE_NAME)..."
 rm -rf "$PROFILE_DIR"
 mkdir -p "$PROFILE_DIR"
-cp -rf "$PROFILE_SOURCE"/* "$PROFILE_DIR/"
+cp -a "$PROFILE_SOURCE"/. "$PROFILE_DIR/"
 
 # Replace placeholder with actual profile name
 find "$PROFILE_DIR" -name '*.xml' -exec \
@@ -163,8 +176,17 @@ if [[ "$BUSTED_FMT" == "treeOutput" ]]; then
   sed -n 's/^main| \[mudlet-busted\] //p' "$OUTPUT_LOG" || true
 else
   SUMMARY=$(grep -oP '\d+ successes? / \d+ failures? / \d+ errors? / \d+ pending.*seconds' "$OUTPUT_LOG" || echo "")
-  FAILURES=$(grep -A6 '^Failure -> ' "$OUTPUT_LOG" || true)
-  ERRORS=$(grep -A6 '^Error -> ' "$OUTPUT_LOG" || true)
+
+  # Capture complete failure/error blocks. A fixed -A window truncates the
+  # assertion diff (Expected/Passed-in tables can run many lines), so instead
+  # print from the first 'Failure ->'/'Error ->' marker until the summary or
+  # shutdown line.
+  DETAILS=$(awk '
+    /successes? \/ .*failures?/ {show=0}
+    /shutting down Mudlet/ {show=0}
+    /^(Failure|Error) -> / {show=1}
+    show {print}
+  ' "$OUTPUT_LOG" || true)
 
   echo "========================================"
   echo "  Test Results"
@@ -195,28 +217,17 @@ else
     echo "----------------------------------------"
   fi
 
-  if [[ -n "$FAILURES" ]]; then
+  if [[ -n "$DETAILS" ]]; then
     echo ""
     echo "----------------------------------------"
-    echo "  FAILURES"
+    echo "  FAILURES / ERRORS"
     echo "----------------------------------------"
-    echo "$FAILURES"
-    echo ""
-  fi
-
-  if [[ -n "$ERRORS" ]]; then
-    echo ""
-    echo "----------------------------------------"
-    echo "  ERRORS"
-    echo "----------------------------------------"
-    echo "$ERRORS"
+    echo "$DETAILS"
     echo ""
   fi
 fi
 
 if [[ -f "$SENTINEL" ]]; then
-  echo ""
-  echo "  Raw output: $OUTPUT_LOG"
   rm -f "$SENTINEL"
   exit 1
 else

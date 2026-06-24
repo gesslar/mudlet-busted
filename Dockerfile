@@ -47,9 +47,11 @@ RUN dnf install -y \
     && dnf clean all
 
 # ---------------------------------------------------------------------------
-# Node.js 24.11.0 (required by muddy)
+# Node.js 24.17.0 (required by muddy)
 # ---------------------------------------------------------------------------
-ARG NODE_VERSION=24.11.0
+ARG NODE_VERSION=24.17.0
+# npm bundled with Node 24.17.0 is 11.13.0; pin a newer release explicitly.
+ARG NPM_VERSION=11.17.0
 # Download, verify against Node's published SHASUMS256.txt, then extract.
 RUN set -eux \
     && cd /tmp \
@@ -58,7 +60,9 @@ RUN set -eux \
     && curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/SHASUMS256.txt" -o SHASUMS256.txt \
     && grep " ${NODE_TARBALL}\$" SHASUMS256.txt | sha256sum -c - \
     && tar -xJf "${NODE_TARBALL}" -C /usr/local --strip-components=1 \
-    && rm -f "${NODE_TARBALL}" SHASUMS256.txt
+    && rm -f "${NODE_TARBALL}" SHASUMS256.txt \
+    && npm install -g "npm@${NPM_VERSION}" \
+    && npm --version
 
 # ---------------------------------------------------------------------------
 # Busted (Lua 5.1)

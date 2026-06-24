@@ -17,9 +17,11 @@ A Fedora-based Docker image for running [Busted](https://lunarmodules.github.io/
 ```bash
 docker run --rm -v "$PWD":/workspace gesslardev/mudlet-busted
 ```
+
 or
+
 ```bash
-docker run --rm -v "$PWD":/workspace gesslardev/mudlet-busted:4.21.0
+docker run --rm -v "$PWD":/workspace gesslardev/mudlet-busted:{{VERSION}}
 ```
 
 ## What It Does

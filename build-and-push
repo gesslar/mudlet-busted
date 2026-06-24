@@ -82,8 +82,12 @@ docker build -t "$repo:$version" -t "$repo:latest" .
 docker push "$repo:$version"
 docker push "$repo:latest"
 
-# Sync OVERVIEW.md into the Docker Hub repo overview (requires docker-pushrm plugin)
-docker pushrm "$repo" -f OVERVIEW.md
+# Sync OVERVIEW.md into the Docker Hub repo overview (requires docker-pushrm plugin).
+# Render the {{VERSION}} token to the extracted version before pushing.
+overview=$(mktemp)
+trap 'rm -f Mudlet.AppImage "$overview"' EXIT
+sed "s/{{VERSION}}/$version/g" OVERVIEW.md >"$overview"
+docker pushrm "$repo" -f "$overview"
 
 echo ""
 echo "==> Pushed $repo:$version and $repo:latest"

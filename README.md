@@ -23,9 +23,11 @@ tests inside a headless [Mudlet](https://www.mudlet.org/).
 ## Prerequisites
 
 - **Docker**, logged in to Docker Hub with push rights to `gesslardev/mudlet-busted`:
+
   ```bash
   docker login
   ```
+
 - **A Mudlet AppImage** for the version you're publishing. Download it from the
   [Mudlet releases](https://www.mudlet.org/download/) — it is *not* committed to
   this repo (the files are ~150–180MB each).

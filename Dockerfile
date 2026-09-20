@@ -4,8 +4,10 @@
 # Provides a complete environment for running Busted tests inside a headless
 # Mudlet instance. Mount your project at /workspace and go.
 #
-# Build (place your Mudlet AppImage at Mudlet.AppImage first):
-#   docker build -t mudlet-busted .
+# Release:
+#   ./build-and-push
+# Mudlet comes from its official Fedora RPM repository, so a plain
+# `docker build .` needs nothing staged in the build context.
 #
 # Run:
 #   docker run --rm -v "$PWD":/workspace mudlet-busted
@@ -13,7 +15,9 @@
 #   docker run --rm -v "$PWD":/workspace -e SPEC_FILE=src/resources/test/date_spec.lua mudlet-busted
 # =============================================================================
 
-FROM fedora:42
+# Mudlet publishes RPMs for Fedora 43 and 44 only — see
+# https://packages.mudlet.net/rpm/fedora/ before bumping this.
+FROM fedora:44
 
 # ---------------------------------------------------------------------------
 # Adding Yes, Daddy! repo
@@ -27,9 +31,26 @@ COPY yes-daddy.repo /etc/yum.repos.d/yes-daddy.repo
 RUN rpm --import /etc/pki/rpm-gpg/RPM-GPG-KEY-yes-daddy
 
 # ---------------------------------------------------------------------------
-# System packages
+# Adding Mudlet's official RPM repository
+#
+# Same repo the upstream installer configures, minus the `curl | sh`. The
+# signing key is imported explicitly rather than auto-accepted by dnf, so a
+# key rotation upstream surfaces as a build failure instead of a silent trust
+# change.
 # ---------------------------------------------------------------------------
+
+RUN curl -fsSL https://packages.mudlet.net/rpm/mudlet.repo \
+      -o /etc/yum.repos.d/mudlet.repo \
+    && rpm --import https://packages.mudlet.net/mudlet.asc
+
+# ---------------------------------------------------------------------------
+# System packages
+#
+# MUDLET_VERSION pins an exact RPM version (e.g. 5.0.1); empty means latest.
+# ---------------------------------------------------------------------------
+ARG MUDLET_VERSION=
 RUN dnf install -y \
+      "mudlet${MUDLET_VERSION:+-$MUDLET_VERSION}" \
       gesslar-symbols \
       compat-lua \
       compat-lua-devel \
@@ -45,6 +66,8 @@ RUN dnf install -y \
       curl \
       xz \
     && dnf clean all
+
+ENV MUDLET_BIN=/usr/bin/mudlet
 
 # ---------------------------------------------------------------------------
 # Node.js 24.17.0 (required by muddy)
@@ -73,19 +96,6 @@ RUN luarocks --lua-version 5.1 --tree=/usr install busted
 # Custom tree-style output handler for Busted
 # ---------------------------------------------------------------------------
 COPY profile/current/treeOutput.lua /usr/share/lua/5.1/busted/outputHandlers/treeOutput.lua
-
-# ---------------------------------------------------------------------------
-# Mudlet (copied from local AppImage, extracted to avoid FUSE requirement)
-# ---------------------------------------------------------------------------
-COPY Mudlet.AppImage /tmp/Mudlet.AppImage
-RUN chmod +x /tmp/Mudlet.AppImage \
-    && cd /tmp \
-    && ./Mudlet.AppImage --appimage-extract \
-    && mkdir -p /opt/mudlet \
-    && mv squashfs-root /opt/mudlet/mudlet-app \
-    && rm -f /tmp/Mudlet.AppImage
-
-ENV MUDLET_BIN=/opt/mudlet/mudlet-app/AppRun
 
 # ---------------------------------------------------------------------------
 # Default test profile (bustedState bootstrap scripts)

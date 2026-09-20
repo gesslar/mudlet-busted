@@ -2,10 +2,18 @@
 set -euo pipefail
 
 usage() {
-  echo "Usage: $0 <Mudlet-X.Y.Z.AppImage>"
-  echo "  Copies the AppImage to ./Mudlet.AppImage, builds the Docker image"
-  echo "  tagged as gesslardev/mudlet-busted:X.Y.Z and :latest, then pushes both."
+  echo "Usage: $0 [X.Y.Z]"
+  echo "  Builds the Docker image, installing Mudlet from its official Fedora"
+  echo "  RPM repository (https://packages.mudlet.net) — the latest release, or"
+  echo "  the version given. Tags the result as gesslardev/mudlet-busted:X.Y.Z"
+  echo "  and :latest, then pushes both."
   exit 1
+}
+
+# The image tag follows the Mudlet version that actually landed in the image,
+# which is only known once the RPM is installed — so ask the built image.
+installed_mudlet_version() {
+  docker run --rm --entrypoint rpm "$1" -q --qf '%{VERSION}' mudlet
 }
 
 # Ensure the docker-pushrm plugin is installed (used to sync the Hub overview).
@@ -57,35 +65,46 @@ ensure_pushrm() {
     || { echo "Error: docker-pushrm install failed"; exit 1; }
 }
 
-[[ $# -eq 1 ]] || usage
+[[ $# -le 1 ]] || usage
 
-appimage="$1"
+command -v curl >/dev/null 2>&1 || { echo "Error: curl is required"; exit 1; }
 
-[[ -f "$appimage" ]] || { echo "Error: file '$appimage' not found"; exit 1; }
-
-# Extract version from filename (e.g. Mudlet-4.20.1.AppImage -> 4.20.1)
-version=$(basename "$appimage" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+') \
-  || { echo "Error: could not extract version from '$appimage'"; exit 1; }
+pin=""
+if [[ $# -eq 1 ]]; then
+  pin="${1#Mudlet-}"
+  [[ "$pin" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] \
+    || { echo "Error: invalid Mudlet version '$1' (expected X.Y.Z)"; exit 1; }
+fi
 
 repo="gesslardev/mudlet-busted"
 
 ensure_pushrm
 
-echo "==> AppImage: $appimage"
+echo "==> Mudlet:   ${pin:-latest available in the Mudlet repo}"
+echo ""
+
+# --pull/--no-cache so an unpinned build can't resurrect a cached dnf layer
+# holding a Mudlet older than the repo's current release.
+build_args=()
+[[ -z "$pin" ]] || build_args+=(--build-arg "MUDLET_VERSION=$pin")
+docker build --pull --no-cache "${build_args[@]}" -t "$repo:latest" .
+
+version=$(installed_mudlet_version "$repo:latest")
+[[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] \
+  || { echo "Error: could not read the Mudlet version from the built image"; exit 1; }
+
+echo ""
 echo "==> Version:  $version"
 echo ""
 
-trap 'rm -f Mudlet.AppImage' EXIT
-cp "$appimage" Mudlet.AppImage
-
-docker build -t "$repo:$version" -t "$repo:latest" .
+docker tag "$repo:latest" "$repo:$version"
 docker push "$repo:$version"
 docker push "$repo:latest"
 
 # Sync OVERVIEW.md into the Docker Hub repo overview (requires docker-pushrm plugin).
 # Render the {{VERSION}} token to the extracted version before pushing.
 overview=$(mktemp)
-trap 'rm -f Mudlet.AppImage "$overview"' EXIT
+trap 'rm -f "$overview"' EXIT
 sed "s/{{VERSION}}/$version/g" OVERVIEW.md >"$overview"
 docker pushrm "$repo" -f "$overview"
 

@@ -7,7 +7,7 @@ set -euo pipefail
 # Mudlet Busted Test Runner — Entrypoint
 #
 # Environment variables:
-#   MUDLET_BIN            Path to the Mudlet binary (default: extracted AppImage)
+#   MUDLET_BIN            Path to the Mudlet binary (default: /usr/bin/mudlet)
 #   PROFILE_NAME          Mudlet profile name (default: derived from .output, or BustedTests)
 #   PROFILE_SOURCE        Path to test profile dir (default: test/profile, or built-in)
 #   TESTS_DIRECTORY       Path to spec files or single spec (default: auto-detect)
@@ -18,7 +18,7 @@ set -euo pipefail
 #   TEST_TIMEOUT          Max seconds for the Mudlet test run (default: 300)
 # =============================================================================
 
-MUDLET_BIN="${MUDLET_BIN:-/opt/mudlet/mudlet-app/AppRun}"
+MUDLET_BIN="${MUDLET_BIN:-/usr/bin/mudlet}"
 PROFILE_NAME="${PROFILE_NAME:-BustedTests}"
 PROFILE_DIR="$HOME/.config/mudlet/profiles/$PROFILE_NAME"
 SENTINEL="${SENTINEL:-/tmp/busted-tests-failed}"

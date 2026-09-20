@@ -6,7 +6,7 @@ A Fedora-based Docker image for running [Busted](https://lunarmodules.github.io/
 
 ## What's Inside
 
-- **Mudlet AppImage** — extracted AppImage, no FUSE required
+- **Mudlet** — installed from its [official Fedora RPM repository](https://packages.mudlet.net)
 - **Lua 5.1** — matching Mudlet's embedded runtime
 - **Busted** — Lua testing framework, installed via luarocks
 - **Node.js 24** — for building mpackages with [muddy](https://www.npmjs.com/package/@gesslar/muddy)

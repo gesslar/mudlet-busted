@@ -18,7 +18,6 @@ tests inside a headless [Mudlet](https://www.mudlet.org/).
 | `profile/` | Default Mudlet test profile (Busted bootstrap) baked into the image |
 | `build-and-push` | Release script — build, tag, push, and sync the Hub overview |
 | `OVERVIEW.md` | The Docker Hub overview / end-user docs |
-| `*.AppImage` | Mudlet release builds — **git-ignored**, supplied at release time |
 
 ## Prerequisites
 
@@ -28,32 +27,43 @@ tests inside a headless [Mudlet](https://www.mudlet.org/).
   docker login
   ```
 
-- **A Mudlet AppImage** for the version you're publishing. Download it from the
-  [Mudlet releases](https://www.mudlet.org/download/) — it is *not* committed to
-  this repo (the files are ~150–180MB each).
-- `curl` (only needed the first time on a machine — see below).
+- `curl`, used only to bootstrap the `docker-pushrm` plugin on first run.
+
+Mudlet itself is installed inside the image from its
+[official RPM repository](https://packages.mudlet.net), so nothing needs to be
+downloaded or staged in the build context beforehand.
 
 ## Releasing a new version
 
 ```bash
-./build-and-push Mudlet-4.21.0.AppImage
+./build-and-push
 ```
 
-The version is parsed straight from the filename (`Mudlet-X.Y.Z.AppImage` →
-`X.Y.Z`), so just point it at the AppImage and go. The script will:
+With no argument, the build installs whatever Mudlet release the package repo
+currently serves. To pin a specific version instead, pass it:
+
+```bash
+./build-and-push 5.0.1
+```
+
+The script will:
 
 1. Ensure the `docker-pushrm` plugin is present (auto-installs it on first run).
-2. Stage the AppImage as `Mudlet.AppImage` for the build context.
-3. `docker build` and tag as both `:X.Y.Z` and `:latest`.
+2. `docker build` with `--pull --no-cache`, installing Mudlet from its RPM repo
+   (pinned to the given version, or the repo's latest), tagged `:latest`.
+3. Read the Mudlet version back out of the built image (`rpm -q mudlet`) and tag
+   that same image `:X.Y.Z`.
 4. `docker push` both tags.
 5. Sync `OVERVIEW.md` into the Docker Hub repo overview via `docker pushrm`.
-6. Clean up the staged AppImage.
+
+The build is deliberately uncached: without `--no-cache`, an unpinned release
+could reuse an old `dnf` layer and quietly ship a stale Mudlet.
 
 ## The Docker Hub overview
 
 A plain `docker push` only uploads the image — it never touches the repo's
-**Overview** text. So step 5 above pushes `OVERVIEW.md` separately using the
-[`docker-pushrm`](https://github.com/christian-korneck/docker-pushrm) plugin.
+**Overview** text. So the last step above pushes `OVERVIEW.md` separately using
+the [`docker-pushrm`](https://github.com/christian-korneck/docker-pushrm) plugin.
 
 - **First run on a machine:** the script downloads the plugin into
   `~/.docker/cli-plugins/` automatically (Linux/macOS, amd64/arm64). It's
@@ -65,7 +75,7 @@ A plain `docker push` only uploads the image — it never touches the repo's
   ```bash
   export DOCKER_USER=gesslardev
   export DOCKER_PASS=<personal-access-token>
-  ./build-and-push Mudlet-4.21.0.AppImage
+  ./build-and-push 5.0.1
   ```
 
 To edit the overview without cutting a release, push `OVERVIEW.md` on its own:
@@ -80,6 +90,9 @@ docker pushrm gesslardev/mudlet-busted -f OVERVIEW.md
   absolute URLs for any images or badges.
 - The `docker-pushrm` version is pinned in `build-and-push` (`ver="v1.9.0"`);
   bump it there if you want a newer release.
+- Mudlet publishes RPMs for **Fedora 43 and 44 only**
+  ([index](https://packages.mudlet.net/rpm/fedora/)). The `FROM` line in the
+  `Dockerfile` has to stay on a release they build for.
 
 ## Credits
 

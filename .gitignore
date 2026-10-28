@@ -1,2 +1,5 @@
 # Personal/local Claude settings
 .claude/settings.local.json
+
+# work notes directory
+work/

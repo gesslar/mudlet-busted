@@ -33,15 +33,34 @@ RUN rpm --import /etc/pki/rpm-gpg/RPM-GPG-KEY-yes-daddy
 # ---------------------------------------------------------------------------
 # Adding Mudlet's official RPM repository
 #
-# Same repo the upstream installer configures, minus the `curl | sh`. The
-# signing key is imported explicitly rather than auto-accepted by dnf, so a
-# key rotation upstream surfaces as a build failure instead of a silent trust
-# change.
+# Mudlet publishes its signing key in two places: the package host and its
+# git repo (CI/linux-packages/mudlet.asc), and documents them as the same
+# bytes. We fetch both and refuse to build unless they match, so the package
+# host alone can't swap in a different key. Nothing is pinned here: a
+# legitimate rotation updates both copies upstream and is picked up on the
+# next build. The repo definition is written here rather than fetched, so its
+# gpgkey points at the verified local copy.
 # ---------------------------------------------------------------------------
 
-RUN curl -fsSL https://packages.mudlet.net/rpm/mudlet.repo \
-      -o /etc/yum.repos.d/mudlet.repo \
-    && rpm --import https://packages.mudlet.net/mudlet.asc
+RUN curl -fsSL https://packages.mudlet.net/mudlet.asc -o /tmp/mudlet-host.asc \
+    && curl -fsSL https://raw.githubusercontent.com/Mudlet/Mudlet/development/CI/linux-packages/mudlet.asc \
+         -o /tmp/mudlet-git.asc \
+    && if [ "$(sha256sum < /tmp/mudlet-host.asc)" != "$(sha256sum < /tmp/mudlet-git.asc)" ]; then \
+         echo "Mudlet signing key differs between packages.mudlet.net and GitHub; refusing to trust either." >&2; \
+         exit 1; \
+       fi \
+    && install -m 644 /tmp/mudlet-host.asc /etc/pki/rpm-gpg/RPM-GPG-KEY-mudlet \
+    && rm -f /tmp/mudlet-host.asc /tmp/mudlet-git.asc
+RUN printf '%s\n' \
+      '[mudlet]' \
+      'name=Mudlet' \
+      'baseurl=https://packages.mudlet.net/rpm/fedora/$releasever/$basearch/' \
+      'enabled=1' \
+      'gpgcheck=1' \
+      'repo_gpgcheck=1' \
+      'gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-mudlet' \
+      > /etc/yum.repos.d/mudlet.repo \
+    && rpm --import /etc/pki/rpm-gpg/RPM-GPG-KEY-mudlet
 
 # ---------------------------------------------------------------------------
 # System packages

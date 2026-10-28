@@ -6,3 +6,5 @@ gpgcheck=1
 repo_gpgcheck=0
 gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-yes-daddy
 metadata_expire=1h
+# mudlet comes from Mudlet's own repo (see Dockerfile), never from here.
+excludepkgs=mudlet

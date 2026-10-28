@@ -16,7 +16,7 @@ A Fedora-based Docker image for running [Busted](https://lunarmodules.github.io/
 
 By default the image builds your package with [muddy](https://www.npmjs.com/package/@gesslar/muddy), installs it into a fresh Mudlet profile, and then runs your specs against it. So the zero-config path expects:
 
-- **An `mfile`** (muddy's package config, a JSON file) somewhere inside your project. If no `mfile` is found, the run stops with `Error: mfile not found`.
+- **An `mfile`** (muddy's package config, a JSON file) alongside your test specs or in your project root. For any other location inside your project, set `MFILE` to its path. If no `mfile` is found, the run stops with `Error: mfile not found`.
 - **Spec files** named `*_spec.lua`.
 
 Not using muddy? See [Bring Your Own Package](#bring-your-own-package).

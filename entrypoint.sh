@@ -211,14 +211,14 @@ if [[ "$BUSTED_FMT" == "treeOutput" ]]; then
   # Strip Mudlet noise, show everything from the first test output onward.
   sed -n 's/^main| \[mudlet-busted\] //p' "$OUTPUT_LOG" || true
 else
-  SUMMARY=$(grep -oP '\d+ successes? / \d+ failures? / \d+ errors? / \d+ pending.*seconds' "$OUTPUT_LOG" || echo "")
+  SUMMARY=$(grep -oP '\d+ success(es)? / \d+ failures? / \d+ errors? / \d+ pending.*seconds' "$OUTPUT_LOG" || echo "")
 
   # Capture complete failure/error blocks. A fixed -A window truncates the
   # assertion diff (Expected/Passed-in tables can run many lines), so instead
   # print from the first 'Failure ->'/'Error ->' marker until the summary or
   # shutdown line.
   DETAILS=$(awk '
-    /successes? \/ .*failures?/ {show=0}
+    /success(es)? \/ .*failures?/ {show=0}
     /shutting down Mudlet/ {show=0}
     /^(Failure|Error) -> / {show=1}
     show {print}
@@ -267,7 +267,7 @@ if [[ -f "$SENTINEL" ]]; then
   # Tests ran and at least one failed.
   rm -f "$SENTINEL"
   exit 1
-elif grep -qE 'successes? / .*failures?|[0-9]+ passing' "$OUTPUT_LOG"; then
+elif grep -qE 'success(es)? / .*failures?|[0-9]+ passing' "$OUTPUT_LOG"; then
   # Tests ran to completion and none failed.
   rm -f "$OUTPUT_LOG"
   exit 0

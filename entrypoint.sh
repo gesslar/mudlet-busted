@@ -185,6 +185,10 @@ export TESTS_DIRECTORY="$TESTS_DIR"
 export QUIT_MUDLET_AFTER_TESTS=true
 export PRETEST_PACKAGE="${PRETEST_PACKAGE:-NONE}"
 export SENTINEL
+# Skips Mudlet's startup update check. Otherwise, whenever a newer Mudlet is
+# released, the updater downloads it in the background and closeMudlet()
+# never completes, so the run hangs until TEST_TIMEOUT.
+export MUDLET_TEST_MODE=1
 
 
 MUDLET_RC=0
@@ -192,6 +196,7 @@ timeout "$TEST_TIMEOUT" \
   xvfb-run --auto-servernum \
   "$MUDLET_BIN" \
   --profile "$PROFILE_NAME" \
+  --offline \
   --mirror \
   >"$OUTPUT_LOG" 2>&1 || MUDLET_RC=$?
 

@@ -374,6 +374,63 @@
         end
         )
 
+        -- Record where the run is, so a hang or crash can be reported by name.
+        -- Closed on every write, so it survives Mudlet being killed mid-spec.
+        -- Protected, because an error in a busted subscriber fails the spec.
+        local specStatePath = os.getenv("MUDLET_BUSTED_SPEC_STATE")
+        if specStatePath then
+        local function describeSpec(element)
+        local names = { element.name or element.descriptor }
+        local parent = busted.context.parent(element)
+        while parent and (parent.name or parent.descriptor) and parent.descriptor ~= "file" do
+        table.insert(names, 1, parent.name or parent.descriptor)
+        parent = busted.context.parent(parent)
+        end
+
+        local description = table.concat(names, " ")
+        local trace = element.trace
+        if trace and trace.short_src then
+        description = description .. " (" .. trace.short_src .. ":" .. tostring(trace.currentline) .. ")"
+        end
+        return description
+        end
+
+        local function recordSpecState(state, element)
+        pcall(function()
+        local description = state == "file" and element.name or describeSpec(element)
+        local f = io.open(specStatePath, "w")
+        if f then
+        f:write(state, "\t", (tostring(description):gsub("%s+", " ")), "\n")
+        f:close()
+        end
+        end)
+        end
+
+        busted.subscribe(
+        {'file', 'start'},
+        function(element)
+        recordSpecState("file", element)
+        return nil, true
+        end
+        )
+
+        busted.subscribe(
+        {'test', 'start'},
+        function(element)
+        recordSpecState("running", element)
+        return nil, true
+        end
+        )
+
+        busted.subscribe(
+        {'test', 'end'},
+        function(element)
+        recordSpecState("finished", element)
+        return nil, true
+        end
+        )
+        end
+
         bustedState.setup({testLocation})
         bustedState.runTests()
         raiseEvent("testsComplete")

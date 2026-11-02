@@ -103,7 +103,7 @@ All optional — override only when the defaults don't fit. Paths are relative t
 | `0` | Every test passed |
 | `1` | At least one failure or error, **or** a Lua error was raised outside specs, such as in an event handler or timer (see `ALLOW_LUA_ERRORS`), **or** no results were produced: Mudlet failed to start, crashed, or hit `TEST_TIMEOUT` |
 
-A run that produces no results never reports success.
+A run that produces no results never reports success. If it hangs or crashes partway through, the output names the spec it stopped on. This needs the built-in profile, so a custom `test/profile` gets a generic message instead.
 
 ## Output
 

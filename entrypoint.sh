@@ -188,6 +188,11 @@ export TESTS_DIRECTORY="$TESTS_DIR"
 export QUIT_MUDLET_AFTER_TESTS=true
 export PRETEST_PACKAGE="${PRETEST_PACKAGE:-NONE}"
 export SENTINEL
+# Unique to this run, so only this run's treeOutput can report completion.
+MUDLET_BUSTED_RUN_ID="$(cat /proc/sys/kernel/random/uuid)"
+export MUDLET_BUSTED_RUN_ID
+# The profile keeps the current spec here, to name it if the run never finishes.
+export MUDLET_BUSTED_SPEC_STATE="$BUILD_DIR/spec-state"
 # Skips Mudlet's startup update check. Otherwise, whenever a newer Mudlet is
 # released, the updater downloads it in the background and closeMudlet()
 # never completes, so the run hangs until TEST_TIMEOUT.
@@ -210,12 +215,13 @@ timeout "$TEST_TIMEOUT" \
 # Lua errors Mudlet caught itself (event handlers, timers) never reach busted,
 # so they appear in neither its counts nor the sentinel. Since 5.1 they are
 # mirrored from the profile's errors console. plainTerminal's progress marks can
-# sit ahead of the prefix on the same line; matching the exact prefix after them
-# keeps text a spec feeds to the main console from counting as an error.
+# sit ahead of the prefix on the same line. Find the exact prefix first, since a
+# profile name may itself start with one of those marks, then allow only marks
+# before it, so text a spec feeds to the main console can't count as an error.
 LUA_ERRORS=$(awk -v prefix="$PROFILE_NAME.errors_$PROFILE_NAME| " '
-  { line = $0; sub(/^[-+*.]+/, "", line) }
-  index(line, prefix) != 1 { next }
-  { line = substr(line, length(prefix) + 1) }
+  { start = index($0, prefix) }
+  start == 0 || substr($0, 1, start - 1) !~ /^[-+*.]*$/ { next }
+  { line = substr($0, start + length(prefix)) }
   line ~ /^\[ERROR:\]/ { seen = 1 }
   seen { print line }
 ' "$OUTPUT_LOG" 2>/dev/null || true)
@@ -316,10 +322,11 @@ if [[ -f "$SENTINEL" ]]; then
   # Tests ran and at least one failed.
   rm -f "$SENTINEL"
   exit 1
-elif grep -qP '^\d+ success(es)? / \d+ failures? / |\[mudlet-busted\] \x1b\[[0-9;]*m  \d+ passing' "$OUTPUT_LOG"; then
-  # Tests ran to completion and none failed. These match only the summary each
-  # output handler prints, so mirrored game text or a spec named "3 passing"
-  # can't pass off a crashed run as a success.
+elif grep -qP "^\\d+ success(es)? / \\d+ failures? / |^[^|]*main\\| \\[mudlet-busted:complete:$MUDLET_BUSTED_RUN_ID\\]\$" "$OUTPUT_LOG"; then
+  # Tests ran to completion and none failed. These match only plainTerminal's
+  # summary and treeOutput's completion marker for this run, so mirrored game
+  # text or a spec named "3 passing" can't pass off a crashed or hung run as a
+  # success.
   if [[ -n "$LUA_ERRORS" && "$ALLOW_LUA_ERRORS" != "true" ]]; then
     echo "  FAILED: all specs passed, but the $LUA_ERROR_COUNT Lua error(s) above were raised"
     echo "  outside them. If they're expected, set ALLOW_LUA_ERRORS=true."
@@ -328,17 +335,54 @@ elif grep -qP '^\d+ success(es)? / \d+ failures? / |\[mudlet-busted\] \x1b\[[0-9
   rm -f "$OUTPUT_LOG"
   exit 0
 else
-  # No sentinel and no result summary — Mudlet failed to start or crashed
+  # No sentinel and no result summary — Mudlet failed to start, crashed or hung
   # before the suite finished. Never report success in this case.
-  echo ""
-  echo "  ERROR: no test results were produced (Mudlet exit: $MUDLET_RC)."
-  if [[ "$MUDLET_RC" -eq 124 ]]; then
-    echo "  The run exceeded TEST_TIMEOUT=${TEST_TIMEOUT}s and was killed."
-  else
-    echo "  Mudlet likely failed to start or crashed before the suite completed."
+
+  # plainTerminal already dumped the raw log above, when it found no summary.
+  if [[ "$BUSTED_FMT" == "treeOutput" ]]; then
+    echo "----------------------------------------"
+    cat "$OUTPUT_LOG" 2>/dev/null || echo "  (no output captured)"
+    echo "----------------------------------------"
   fi
-  echo "----------------------------------------"
-  cat "$OUTPUT_LOG" 2>/dev/null || echo "  (no output captured)"
-  echo "----------------------------------------"
+
+  if [[ "$MUDLET_RC" -eq 124 ]]; then
+    STOPPED="Timed out after ${TEST_TIMEOUT}s (TEST_TIMEOUT)"
+    ADVICE="Check it for an infinite loop or a call that blocks."
+  else
+    STOPPED="Mudlet stopped unexpectedly (exit: $MUDLET_RC)"
+    ADVICE="Check it for a call that exits or crashes Mudlet."
+  fi
+
+  # Left in place by the profile. A custom test/profile may not write it.
+  SPEC_STATE=""
+  SPEC_DESCRIPTION=""
+  if [[ -f "$MUDLET_BUSTED_SPEC_STATE" ]]; then
+    IFS=$'\t' read -r SPEC_STATE SPEC_DESCRIPTION <"$MUDLET_BUSTED_SPEC_STATE" || true
+  fi
+
+  echo ""
+  case "$SPEC_STATE" in
+    running)
+      echo "  ERROR: $STOPPED while running this spec:"
+      echo "    $SPEC_DESCRIPTION"
+      echo "  $ADVICE"
+      ;;
+    finished)
+      echo "  ERROR: $STOPPED after this spec finished:"
+      echo "    $SPEC_DESCRIPTION"
+      echo "  $ADVICE The cause may be in the spec itself, or in the next spec's"
+      echo "  before_each, or in a setup or teardown block."
+      ;;
+    file)
+      echo "  ERROR: $STOPPED before any spec started in this file:"
+      echo "    $SPEC_DESCRIPTION"
+      echo "  $ADVICE Look at its top-level code, its describe bodies and its setup blocks."
+      ;;
+    *)
+      echo "  ERROR: $STOPPED and no test results were produced."
+      echo "  Mudlet may have failed to start, or your package may have stopped it"
+      echo "  while installing."
+      ;;
+  esac
   exit 1
 fi

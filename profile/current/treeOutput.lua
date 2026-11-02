@@ -118,6 +118,11 @@ return function(options)
     write(summary)
     write('')
 
+    -- Tells the entrypoint the suite finished. It has its own whole line with no
+    -- [mudlet-busted] tag, so the tree output leaves it out, and it carries this
+    -- run's id, so text in a spec or fixture can't match it by accident.
+    io.write('[mudlet-busted:complete:' .. (os.getenv('MUDLET_BUSTED_RUN_ID') or '') .. ']\n')
+
     return nil, true
   end
 

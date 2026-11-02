@@ -89,11 +89,11 @@ RUN dnf install -y \
 ENV MUDLET_BIN=/usr/bin/mudlet
 
 # ---------------------------------------------------------------------------
-# Node.js 24.17.0 (required by muddy)
+# Node.js 26 LTS (muddy requires >=24)
 # ---------------------------------------------------------------------------
-ARG NODE_VERSION=24.17.0
-# npm bundled with Node 24.17.0 is 11.13.0; pin a newer release explicitly.
-ARG NPM_VERSION=11.17.0
+ARG NODE_VERSION=26.13.0
+# npm bundled with Node 26.13.0 is 11.20.0; pin a newer release explicitly.
+ARG NPM_VERSION=12.2.1
 # Download, verify against Node's published SHASUMS256.txt, then extract.
 RUN set -eux \
     && cd /tmp \

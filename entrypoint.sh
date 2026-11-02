@@ -16,6 +16,8 @@ set -euo pipefail
 #   SENTINEL              Path to failure sentinel file (default: /tmp/busted-tests-failed)
 #   OUTPUT_LOG            Path to raw output log (default: /tmp/test-output.log)
 #   TEST_TIMEOUT          Max seconds for the Mudlet test run (default: 300)
+#   ALLOW_LUA_ERRORS      Set to true to report Lua errors raised outside specs
+#                         without failing the run (default: false)
 # =============================================================================
 
 MUDLET_BIN="${MUDLET_BIN:-/usr/bin/mudlet}"
@@ -27,6 +29,7 @@ TEST_TIMEOUT="${TEST_TIMEOUT:-300}"
 SKIP_BUILD="${SKIP_BUILD:-false}"
 # BUSTED_FMT="${BUSTED_OUTPUT:-treeOutput}"
 BUSTED_FMT="${BUSTED_OUTPUT:-plainTerminal}"
+ALLOW_LUA_ERRORS="${ALLOW_LUA_ERRORS:-false}"
 
 # ---------------------------------------------------------------------------
 # If a command was passed, just run it (allows overriding the entrypoint)
@@ -204,14 +207,50 @@ timeout "$TEST_TIMEOUT" \
 # Parse and display results
 # ---------------------------------------------------------------------------
 
+# Lua errors Mudlet caught itself (event handlers, timers) never reach busted,
+# so they appear in neither its counts nor the sentinel. Since 5.1 they are
+# mirrored from the profile's errors console. plainTerminal's progress marks can
+# sit ahead of the prefix on the same line; matching the exact prefix after them
+# keeps text a spec feeds to the main console from counting as an error.
+LUA_ERRORS=$(awk -v prefix="$PROFILE_NAME.errors_$PROFILE_NAME| " '
+  { line = $0; sub(/^[-+*.]+/, "", line) }
+  index(line, prefix) != 1 { next }
+  { line = substr(line, length(prefix) + 1) }
+  line ~ /^\[ERROR:\]/ { seen = 1 }
+  seen { print line }
+' "$OUTPUT_LOG" 2>/dev/null || true)
+LUA_ERROR_COUNT=$(printf '%s\n' "$LUA_ERRORS" | grep -c '^\[ERROR:\]' || true)
+if [[ "$LUA_ERROR_COUNT" -eq 1 ]]; then
+  LUA_ERROR_LABEL="Lua error"
+else
+  LUA_ERROR_LABEL="Lua errors"
+fi
+
 # Tree output handler prints its own formatted results — pass them through.
 # For plainTerminal, parse the summary line and reformat.
 if [[ "$BUSTED_FMT" == "treeOutput" ]]; then
   # The tree handler emits describe/it tree + summary directly.
   # Strip Mudlet noise, show everything from the first test output onward.
-  sed -n 's/^main| \[mudlet-busted\] //p' "$OUTPUT_LOG" || true
+  # Mudlet 5.1 prefixes mirrored lines with "<profile>.<console>| " (5.0 used
+  # "<console>| "), and a spec's unterminated echo() can sit ahead of the tag on
+  # the same line. Keep main-console lines only, cut through the last tag.
+  # The handler prints its summary before late errors (timers) can fire, so the
+  # Lua error count is added here, only when non-zero like its other categories.
+  TREE_OUTPUT=$(sed -n 's/^[^|]*main|.*\[mudlet-busted\] //p' "$OUTPUT_LOG" || true)
+  if [[ -n "$TREE_OUTPUT" ]]; then
+    echo "$TREE_OUTPUT"
+    if [[ "$LUA_ERROR_COUNT" -gt 0 ]]; then
+      # The LUA ERRORS section below supplies the blank line.
+      echo "$(WARN)  $LUA_ERROR_COUNT $LUA_ERROR_LABEL"
+    else
+      echo ""
+    fi
+  fi
 else
-  SUMMARY=$(grep -oP '\d+ success(es)? / \d+ failures? / \d+ errors? / \d+ pending.*seconds' "$OUTPUT_LOG" || echo "")
+  # Anchored: busted's own summary is unprefixed at line start, while text a
+  # spec feeds through feedTriggers() is mirrored with a console prefix and must
+  # not be mistaken for it.
+  SUMMARY=$(grep -oP '^\d+ success(es)? / \d+ failures? / \d+ errors? / \d+ pending.*seconds' "$OUTPUT_LOG" || echo "")
 
   # Capture complete failure/error blocks. A fixed -A window truncates the
   # assertion diff (Expected/Passed-in tables can run many lines), so instead
@@ -241,6 +280,7 @@ else
     echo "$(OK) ${parts[0]}" | awk '{$1=$1; print}'     # successes
     echo "$(FAIL) ${parts[1]}" | awk '{$1=$1; print}'   # failures
     echo "$(NO) ${parts[2]}" | awk '{$1=$1; print}'     # errors
+    echo "$(WARN) $LUA_ERROR_COUNT $LUA_ERROR_LABEL"    # raised outside specs
     echo "$(ASK) ${parts[3]}" | awk '{$1=$1; print}' # pending
     echo "$(ALMOST) ${dur}" | awk '{$1=$1; print}' # pending
   else
@@ -263,12 +303,28 @@ else
   fi
 fi
 
+if [[ -n "$LUA_ERRORS" ]]; then
+  echo ""
+  echo "----------------------------------------"
+  echo "  LUA ERRORS ($LUA_ERROR_COUNT, raised outside specs)"
+  echo "----------------------------------------"
+  echo "$LUA_ERRORS"
+  echo ""
+fi
+
 if [[ -f "$SENTINEL" ]]; then
   # Tests ran and at least one failed.
   rm -f "$SENTINEL"
   exit 1
-elif grep -qE 'success(es)? / .*failures?|[0-9]+ passing' "$OUTPUT_LOG"; then
-  # Tests ran to completion and none failed.
+elif grep -qP '^\d+ success(es)? / \d+ failures? / |\[mudlet-busted\] \x1b\[[0-9;]*m  \d+ passing' "$OUTPUT_LOG"; then
+  # Tests ran to completion and none failed. These match only the summary each
+  # output handler prints, so mirrored game text or a spec named "3 passing"
+  # can't pass off a crashed run as a success.
+  if [[ -n "$LUA_ERRORS" && "$ALLOW_LUA_ERRORS" != "true" ]]; then
+    echo "  FAILED: all specs passed, but the $LUA_ERROR_COUNT Lua error(s) above were raised"
+    echo "  outside them. If they're expected, set ALLOW_LUA_ERRORS=true."
+    exit 1
+  fi
   rm -f "$OUTPUT_LOG"
   exit 0
 else

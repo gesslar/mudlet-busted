@@ -9,7 +9,7 @@ A Fedora-based Docker image for running [Busted](https://lunarmodules.github.io/
 - **Mudlet** — installed from its [official Fedora RPM repository](https://packages.mudlet.net)
 - **Lua 5.1** — matching Mudlet's embedded runtime
 - **Busted** — Lua testing framework, installed via luarocks
-- **Node.js 24** — for building mpackages with [muddy](https://www.npmjs.com/package/@gesslar/muddy)
+- **Node.js 26** — for building mpackages with [muddy](https://www.npmjs.com/package/@gesslar/muddy)
 - **Xvfb** — virtual framebuffer for headless GUI execution
 
 ## What Your Project Needs
@@ -92,6 +92,7 @@ All optional — override only when the defaults don't fit. Paths are relative t
 | `PRETEST_PACKAGE` | Muddy's build output | Package to install before the specs run (use with `SKIP_BUILD=true`) |
 | `BUSTED_OUTPUT` | `plainTerminal` | Busted output handler (`treeOutput` for a nested describe/it tree) |
 | `TEST_TIMEOUT` | `300` | Max seconds for the test run before it is killed |
+| `ALLOW_LUA_ERRORS` | `false` | Set to `true` to report Lua errors raised outside specs without failing the run |
 | `SENTINEL` | `/tmp/busted-tests-failed` | Failure sentinel file path |
 | `OUTPUT_LOG` | `/tmp/test-output.log` | Raw Mudlet output log path |
 
@@ -100,7 +101,7 @@ All optional — override only when the defaults don't fit. Paths are relative t
 | Code | Meaning |
 |---|---|
 | `0` | Every test passed |
-| `1` | At least one failure or error, **or** no results were produced: Mudlet failed to start, crashed, or hit `TEST_TIMEOUT` |
+| `1` | At least one failure or error, **or** a Lua error was raised outside specs, such as in an event handler or timer (see `ALLOW_LUA_ERRORS`), **or** no results were produced: Mudlet failed to start, crashed, or hit `TEST_TIMEOUT` |
 
 A run that produces no results never reports success.
 
@@ -116,6 +117,7 @@ A passing run:
 ✓ 1083 successes
 ✗ 0 failures
 ⊘ 0 errors
+! 0 Lua errors
 ? 0 pending
 ≈ 1.041343 seconds
 ```
@@ -126,6 +128,7 @@ A failing run adds each failure or error, with the spec file and line:
 ✓ 2 successes
 ✗ 1 failure
 ⊘ 0 errors
+! 0 Lua errors
 ? 0 pending
 ≈ 0.000737 seconds
 
